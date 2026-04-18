@@ -21,13 +21,11 @@ export interface GameStore {
   cleared: number
   misses: number
   lastSpawnAt: number
-  clearEffect: boolean
 
   startStage: (stage: number) => void
   toggleSignal: (runwayId: string) => void
   tick: (now: number) => void
   setPhase: (phase: GameStore['phase']) => void
-  dismissClearEffect: () => void
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -39,7 +37,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
   cleared: 0,
   misses: 0,
   lastSpawnAt: 0,
-  clearEffect: false,
 
   startStage: (stage) => {
     const config = STAGES[stage - 1]
@@ -53,8 +50,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       signals,
       cleared: 0,
       misses: 0,
-      lastSpawnAt: 0,
-      clearEffect: false,
+      // first plane arrives after ~3s
+      lastSpawnAt: Date.now() - config.spawnInterval + 3200,
     })
   },
 
@@ -68,7 +65,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   setPhase: (phase) => set({ phase }),
-  dismissClearEffect: () => set({ clearEffect: false }),
 
   tick: (now) => {
     const s = get()
@@ -78,17 +74,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     let cleared = s.cleared
     let misses = s.misses
 
-    const activePlanes = planes.filter(
-      (p) => p.state !== 'leaving'
-    )
-
+    const activePlanes = planes.filter((p) => p.state !== 'leaving')
     let newPlanes = [...planes]
 
-    // Spawn new plane
-    if (
-      now - lastSpawnAt > config.spawnInterval &&
-      activePlanes.length < config.simultaneous
-    ) {
+    // Spawn
+    if (now - lastSpawnAt > config.spawnInterval && activePlanes.length < config.simultaneous) {
       const runway = randOf(config.runways)
       const isDeparture =
         config.hasDepartures &&
@@ -111,47 +101,55 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({ lastSpawnAt: now })
     }
 
-    const INCOMING_DURATION = 1800
-    const LANDING_DURATION = (size: PlaneData['size']) => (size === 'large' ? 2800 : 2000)
-    const TAXIING_DURATION = (size: PlaneData['size']) => (size === 'large' ? 2000 : 1400)
-    const GATE_LINGER = 6000
-    const DEPARTING_DURATION = 2000
-    const LEAVING_DURATION = 1600
+    const INCOMING_MS = 1800
+    const LANDING_MS = (p: PlaneData) => (p.size === 'large' ? 2800 : 2000)
+    const TAXIING_MS = (p: PlaneData) => (p.size === 'large' ? 2000 : 1400)
+    const GATE_LINGER_MS = 6000
+    const DEPARTING_MS = 2000
+    const LEAVING_MS = 1600
 
-    let didClear = false
-    let didMiss = false
+    // Track signals that need auto-reset to red (when landing begins)
+    const autoResetSignals: Record<string, SignalColor> = {}
 
     newPlanes = newPlanes
       .map((plane): PlaneData => {
         const signal = signals[plane.runwayId] ?? 'red'
         const elapsed = now - plane.stateStartedAt
 
+        // Check if any other plane is currently using this runway
+        const runwayOccupied = planes.some(
+          (p) =>
+            p.id !== plane.id &&
+            p.runwayId === plane.runwayId &&
+            (p.state === 'landing' || p.state === 'taxiing' || p.state === 'departing')
+        )
+
         switch (plane.state) {
           case 'incoming': {
-            if (elapsed >= INCOMING_DURATION) {
+            if (elapsed >= INCOMING_MS) {
               return { ...plane, state: 'approaching', stateStartedAt: now }
             }
             return plane
           }
 
           case 'approaching': {
-            const fuelDrain = elapsed / config.fuelDuration
-            const newFuel = Math.max(0, 1 - fuelDrain)
+            const newFuel = Math.max(0, 1 - elapsed / config.fuelDuration)
 
+            // CRASH: signal is green but runway is occupied — collision!
+            if (signal === 'green' && runwayOccupied) {
+              misses += 2  // crash is a heavy penalty
+              return { ...plane, state: 'leaving', fuel: -1, stateStartedAt: now }
+            }
+
+            // Fuel ran out → missed
             if (newFuel <= 0) {
-              didMiss = true
               misses++
               return { ...plane, state: 'leaving', fuel: 0, stateStartedAt: now }
             }
 
-            const runwayOccupied = newPlanes.some(
-              (p) =>
-                p.id !== plane.id &&
-                p.runwayId === plane.runwayId &&
-                (p.state === 'landing' || p.state === 'taxiing')
-            )
-
+            // Clear runway + green → start landing, auto-reset signal to red
             if (signal === 'green' && !runwayOccupied) {
+              autoResetSignals[plane.runwayId] = 'red'
               return { ...plane, state: 'landing', fuel: newFuel, stateStartedAt: now }
             }
 
@@ -159,16 +157,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
           }
 
           case 'landing': {
-            if (elapsed >= LANDING_DURATION(plane.size)) {
+            if (elapsed >= LANDING_MS(plane)) {
               return { ...plane, state: 'taxiing', stateStartedAt: now }
             }
             return plane
           }
 
           case 'taxiing': {
-            if (elapsed >= TAXIING_DURATION(plane.size)) {
+            if (elapsed >= TAXIING_MS(plane)) {
               cleared++
-              didClear = true
               return { ...plane, state: 'atGate', stateStartedAt: now }
             }
             return plane
@@ -176,54 +173,49 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
           case 'atGate': {
             if (plane.isDeparture) {
-              const runwayOccupied = newPlanes.some(
-                (p) =>
-                  p.id !== plane.id &&
-                  p.runwayId === plane.runwayId &&
-                  (p.state === 'landing' || p.state === 'taxiing' || p.state === 'departing')
-              )
               if (signal === 'green' && !runwayOccupied) {
                 return { ...plane, state: 'departing', stateStartedAt: now }
               }
-            } else if (elapsed >= GATE_LINGER) {
+            } else if (elapsed >= GATE_LINGER_MS) {
               return { ...plane, state: 'leaving', stateStartedAt: now }
             }
             return plane
           }
 
           case 'departing': {
-            if (elapsed >= DEPARTING_DURATION) {
+            if (elapsed >= DEPARTING_MS) {
               cleared++
-              didClear = true
               return { ...plane, state: 'leaving', stateStartedAt: now }
             }
             return plane
           }
 
-          case 'leaving': {
+          case 'leaving':
             return plane
-          }
 
           default:
             return plane
         }
       })
       .filter((p) => {
-        if (p.state === 'leaving') {
-          return now - p.stateStartedAt < LEAVING_DURATION
-        }
+        if (p.state === 'leaving') return now - p.stateStartedAt < LEAVING_MS
         return true
       })
+
+    const updatedSignals =
+      Object.keys(autoResetSignals).length > 0
+        ? { ...signals, ...autoResetSignals }
+        : signals
 
     const updates: Partial<GameStore> = {
       planes: newPlanes,
       cleared,
       misses,
+      signals: updatedSignals,
     }
 
     if (cleared >= config.target) {
       updates.phase = 'clear'
-      updates.clearEffect = true
     } else if (misses >= config.allowedMisses) {
       updates.phase = 'fail'
     }

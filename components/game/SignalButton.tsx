@@ -6,10 +6,12 @@ interface Props {
   color: SignalColor
   onToggle: () => void
   label?: string
+  hasWaiting?: boolean
 }
 
-export function SignalButton({ color, onToggle, label }: Props) {
+export function SignalButton({ color, onToggle, label, hasWaiting = false }: Props) {
   const isGreen = color === 'green'
+  const showPulse = hasWaiting && !isGreen
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
@@ -27,31 +29,60 @@ export function SignalButton({ color, onToggle, label }: Props) {
           {label}
         </span>
       )}
-      <motion.button
-        whileTap={{ scale: 0.88 }}
-        onClick={onToggle}
-        style={{
-          width: 96,
-          height: 96,
-          borderRadius: '50%',
-          background: isGreen ? '#2F6E6A' : '#E0644B',
-          border: '4px solid #1F2430',
-          boxShadow: isGreen
-            ? '5px 5px 0 #1A4240'
-            : '5px 5px 0 #8B3020',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          transition: 'background 0.15s, box-shadow 0.15s',
-          touchAction: 'manipulation',
-          WebkitTapHighlightColor: 'transparent',
-        }}
-      >
-        <svg width="44" height="44" viewBox="0 0 44 44">
-          {isGreen ? (
-            /* plane landing arrow */
-            <>
+
+      <div style={{ position: 'relative' }}>
+        {/* Pulsing ring when a plane is waiting */}
+        {showPulse && (
+          <>
+            <motion.div
+              animate={{ scale: [1, 1.55], opacity: [0.6, 0] }}
+              transition={{ duration: 0.9, repeat: Infinity, ease: 'easeOut' }}
+              style={{
+                position: 'absolute',
+                inset: -6,
+                borderRadius: '50%',
+                border: '4px solid #F2B544',
+                pointerEvents: 'none',
+              }}
+            />
+            <motion.div
+              animate={{ scale: [1, 1.3], opacity: [0.4, 0] }}
+              transition={{ duration: 0.9, repeat: Infinity, ease: 'easeOut', delay: 0.2 }}
+              style={{
+                position: 'absolute',
+                inset: -6,
+                borderRadius: '50%',
+                border: '3px solid #F2B544',
+                pointerEvents: 'none',
+              }}
+            />
+          </>
+        )}
+
+        <motion.button
+          whileTap={{ scale: 0.88 }}
+          animate={showPulse ? { scale: [1, 1.06, 1] } : { scale: 1 }}
+          transition={showPulse ? { duration: 0.8, repeat: Infinity, ease: 'easeInOut' } : {}}
+          onClick={onToggle}
+          style={{
+            width: 104,
+            height: 104,
+            borderRadius: '50%',
+            background: isGreen ? '#2F6E6A' : '#E0644B',
+            border: '4px solid #1F2430',
+            boxShadow: isGreen ? '5px 5px 0 #1A4240' : '5px 5px 0 #8B3020',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'background 0.15s, box-shadow 0.15s',
+            touchAction: 'manipulation',
+            WebkitTapHighlightColor: 'transparent',
+            position: 'relative',
+          }}
+        >
+          <svg width="44" height="44" viewBox="0 0 44 44">
+            {isGreen ? (
               <path
                 d="M22 8 L22 36 M14 28 L22 36 L30 28"
                 stroke="#F4EADA"
@@ -60,38 +91,31 @@ export function SignalButton({ color, onToggle, label }: Props) {
                 strokeLinejoin="round"
                 fill="none"
               />
-            </>
-          ) : (
-            /* stop hand */
-            <>
-              <rect
-                x="14"
-                y="14"
-                width="16"
-                height="16"
-                rx="2"
-                fill="#F4EADA"
-              />
+            ) : (
               <path
-                d="M22 10 L22 18 M16 14 L16 22 M28 14 L28 22"
+                d="M22 10 L22 26 M22 30 L22 34"
                 stroke="#F4EADA"
-                strokeWidth="3.5"
+                strokeWidth="4"
                 strokeLinecap="round"
               />
-            </>
-          )}
-        </svg>
-      </motion.button>
-      <span
+            )}
+          </svg>
+        </motion.button>
+      </div>
+
+      <div
         style={{
           fontSize: 14,
           fontWeight: 900,
           color: isGreen ? '#2F6E6A' : '#E0644B',
-          letterSpacing: '-0.02em',
+          letterSpacing: '0.02em',
+          background: '#1F2430',
+          padding: '3px 10px',
+          border: isGreen ? '2px solid #2F6E6A' : '2px solid #E0644B',
         }}
       >
-        {isGreen ? 'ちゃくりく OK' : 'まちあわせ'}
-      </span>
+        {isGreen ? 'LAND' : 'HOLD'}
+      </div>
     </div>
   )
 }

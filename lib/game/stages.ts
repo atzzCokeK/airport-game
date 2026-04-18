@@ -11,7 +11,7 @@ export const STAGES: StageConfig[] = [
     hasDepartures: false,
     hasLargeAircraft: false,
     allowedMisses: 5,
-    fuelDuration: 25000,
+    fuelDuration: 18000,
   },
   {
     id: 2,
@@ -23,7 +23,7 @@ export const STAGES: StageConfig[] = [
     hasDepartures: true,
     hasLargeAircraft: false,
     allowedMisses: 4,
-    fuelDuration: 22000,
+    fuelDuration: 15000,
   },
   {
     id: 3,
@@ -37,8 +37,8 @@ export const STAGES: StageConfig[] = [
     spawnInterval: 3500,
     hasDepartures: false,
     hasLargeAircraft: false,
-    allowedMisses: 4,
-    fuelDuration: 20000,
+    allowedMisses: 3,
+    fuelDuration: 13000,
   },
   {
     id: 4,
@@ -53,7 +53,7 @@ export const STAGES: StageConfig[] = [
     hasDepartures: true,
     hasLargeAircraft: false,
     allowedMisses: 3,
-    fuelDuration: 18000,
+    fuelDuration: 11000,
   },
   {
     id: 5,
@@ -67,7 +67,7 @@ export const STAGES: StageConfig[] = [
     spawnInterval: 2500,
     hasDepartures: true,
     hasLargeAircraft: true,
-    allowedMisses: 3,
-    fuelDuration: 15000,
+    allowedMisses: 2,
+    fuelDuration: 9000,
   },
 ]

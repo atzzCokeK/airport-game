@@ -45,7 +45,7 @@ export default function RootLayout({
             <path d="M9 12 L15 12 M12 9 L12 15" strokeLinecap="round" />
           </svg>
           <p style={{ color: "#F4EADA", fontFamily: "'M PLUS Rounded 1c', sans-serif", fontWeight: 800, fontSize: 18, margin: 0 }}>
-            たてにしてね！
+            Rotate to portrait!
           </p>
         </div>
         <div className="portrait-only" style={{ height: "100%" }}>
